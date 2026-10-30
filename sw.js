@@ -1,5 +1,5 @@
 /* Service Worker: يشغّل التطبيق بدون إنترنت. غيّر VERSION عند رفع تحديث للكود. */
-const VERSION = 'sapp-v1';
+const VERSION = 'sapp-v2';
 const SHELL = ['./', 'index.html', 'config.js', 'css/style.css', 'js/store.js', 'js/app.js', 'manifest.json', 'logo.jpg', 'icons/icon-192.png'];
 
 self.addEventListener('install', e => {

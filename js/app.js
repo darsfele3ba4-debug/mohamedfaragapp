@@ -18,6 +18,8 @@
   const ATT = { present: 'حاضر', absent: 'غائب' };
   const HW = { done: 'حلّ الواجب', missing: 'لم يحل' };
   const PAID = { '1': 'دفع', '0': 'لم يدفع' };
+  const DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const WEEK = [6, 0, 1, 2, 3, 4, 5]; // الأسبوع يبدأ السبت
   const NAV = [['', '👥', 'المجموعات'], ['students', '🎓', 'الطلاب'], ['settings', '⚙️', 'الإعدادات']];
   const state = { q: {}, search: '', modal: null, showSetup: false, parent: null, route: '', sel: {}, pinged: false };
 
@@ -38,6 +40,10 @@
   const empty = (t, sub) => `<div class="empty"><div>📭</div><b>${esc(t)}</b>${sub ? `<p>${sub}</p>` : ''}</div>`;
   const opts = (arr, sel) => arr.map(x => `<option value="${esc(x.id)}" ${x.id === sel ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
   const clsTitle = c => c.title ? c.title : 'حصة ' + fmtDate(c.date);
+  const sched = gid => { const all = Store.setting('schedules'); return ((all && all[gid]) || []).slice().sort((a, b) => WEEK.indexOf(a.d) - WEEK.indexOf(b.d)); };
+  const fmtTime = t => { if (!t) return ''; const [h, m] = t.split(':').map(Number); return (h % 12 || 12) + ':' + pad(m) + (h < 12 ? ' ص' : ' م'); };
+  const schedTxt = gid => sched(gid).map(x => DAYS[x.d] + (x.t ? ' ' + fmtTime(x.t) : '')).join(' · ');
+  const isToday = gid => sched(gid).some(x => x.d === new Date().getDay());
   const defFee = c => (c && c.fee) || ((Store.get('Groups', c && c.groupId) || {}).fee) || '';
 
   /** ملخص مجموعة سجلات (لحصة أو لطالب) */
@@ -135,8 +141,9 @@
     const body = `<div class="quick"><button class="btn pri" data-act="addGroup">➕ مجموعة جديدة</button></div>
       ${gs.length ? gs.map(g => {
         const n = students(g.id).length, cl = classes(g.id), last = cl[0];
-        return `<a class="card li gcard" href="#/group/${g.id}"><span class="av">👥</span><span class="grow"><b>${esc(g.name)}</b>
-          <small class="muted">${n} طالب · ${cl.length} حصة${last ? ' · آخر حصة ' + fmtDate(last.date) : ''}</small></span><span class="muted">‹</span></a>`;
+        const sc = schedTxt(g.id), td = isToday(g.id);
+        return `<a class="card li gcard ${td ? 'today' : ''}" href="#/group/${g.id}"><span class="av">👥</span><span class="grow"><b>${esc(g.name)}${td ? ' <span class="pill">اليوم</span>' : ''}</b>
+          ${sc ? `<small class="sch">🗓️ ${esc(sc)}</small>` : ''}<small class="muted">${n} طالب · ${cl.length} حصة${last ? ' · آخر حصة ' + fmtDate(last.date) : ''}</small></span><span class="muted">‹</span></a>`;
       }).join('') : empty('لا توجد مجموعات بعد', 'ابدأ بإضافة مجموعة، ثم أضف طلابها.')}`;
     return { title: P().appName, sub: P().teacherName, body };
   }
@@ -160,7 +167,7 @@
     }
     return {
       title: g.name, sub: g.fee ? 'المصاريف: ' + money(g.fee) : '', back: '#/',
-      body: `${tabs}${list}
+      body: `${schedTxt(id) || g.note ? `<div class="card ginfo">${schedTxt(id) ? `<div class="sch">🗓️ ${esc(schedTxt(id))}</div>` : ''}${g.note ? `<div class="muted small">📍 ${esc(g.note)}</div>` : ''}</div>` : ''}${tabs}${list}
         <div class="acts mt"><button class="btn sm" data-act="editGroup" data-id="${id}">✏️ تعديل المجموعة</button><button class="btn sm ghost" data-act="delGroup" data-id="${id}">🗑️ حذف المجموعة</button></div>`
     };
   }
@@ -352,7 +359,9 @@
       return `<form data-form="group" class="stack"><h2>${g.id ? 'تعديل' : 'إضافة'} مجموعة</h2>
         <label>اسم المجموعة<input class="inp" name="name" value="${esc(g.name || '')}" placeholder="مثال: مجموعة السبت 4 م" required autofocus></label>
         <label>المصاريف الافتراضية (ج)<input class="inp" name="fee" inputmode="decimal" value="${esc(g.fee || '')}" placeholder="مثال: 100"></label>
-        <label>ملاحظة<input class="inp" name="note" value="${esc(g.note || '')}" placeholder="المكان، الموعد…"></label>
+        <b class="small">مواعيد المجموعة في الأسبوع</b>
+        <div class="sched">${WEEK.map(d => { const x = sched(g.id).find(y => y.d === d); return `<label class="sched-row"><input type="checkbox" name="d${d}" ${x ? 'checked' : ''}><span>${DAYS[d]}</span><input class="inp sm" type="time" name="t${d}" value="${esc(x ? x.t : '')}" aria-label="الوقت"></label>`; }).join('')}</div>
+        <label>ملاحظة<input class="inp" name="note" value="${esc(g.note || '')}" placeholder="المكان، القاعة…"></label>
         <button class="btn pri">حفظ</button></form>`;
     }
     if (m.type === 'class') {
@@ -544,8 +553,13 @@
     },
     parent(f) { parentLoad(f.code.trim().toUpperCase()); },
     group(f) {
-      const g = state.modal.g || {}, fee = amountVal(f.fee);
-      Store.save('Groups', { id: g.id || uid(), name: f.name.trim(), fee, note: f.note.trim(), sortOrder: g.sortOrder || String(Date.now()) });
+      const g = state.modal.g || {}, fee = amountVal(f.fee), id = g.id || uid();
+      const sc = WEEK.filter(d => f['d' + d]).map(d => ({ d, t: f['t' + d] || '' }));
+      if (WEEK.some(d => !f['d' + d] && f['t' + d])) throw new Error('اختر اليوم بجانب الوقت الذي كتبته');
+      const all = Object.assign({}, Store.setting('schedules') || {});
+      if (sc.length) all[id] = sc; else delete all[id];
+      Store.saveSetting('schedules', all);
+      Store.save('Groups', { id, name: f.name.trim(), fee, note: f.note.trim(), sortOrder: g.sortOrder || String(Date.now()) });
       closeModal(); toast('تم الحفظ ✓');
     },
     class(f) {

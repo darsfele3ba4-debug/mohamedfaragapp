@@ -309,3 +309,9 @@ input[type=color] { width: 44px; height: 44px; border: 1px solid var(--bd); bord
 .pnote { margin: 8px 0 0; background: color-mix(in srgb, var(--pri) 8%, transparent); border-radius: 10px; padding: 6px 10px; font-size: .9rem; }
 .parent .stats { grid-template-columns: 1fr 1fr; }
 @media (max-width: 340px) { .fields, .pgrid { grid-template-columns: 1fr; } }
+
+/* مواعيد المجموعات */
+.sch { display: block; color: var(--pri); font-weight: 700; font-size: .82rem; }
+.ginfo { display: flex; flex-direction: column; gap: 4px; }
+.gcard.today { border-color: var(--pri); }
+.sched-row span { width: 90px; }
